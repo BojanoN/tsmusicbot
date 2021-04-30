@@ -1,0 +1,3 @@
+[submodule "lib/tsclientlib"]
+	path = lib/tsclientlib
+	url = https://github.com/BojanoN/tsclientlib
