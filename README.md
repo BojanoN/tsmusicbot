@@ -23,11 +23,11 @@ The configuration is stored in a json file.
 
 #### Example configuration file
 ```
+$ cat config.json
 {
 "host": "a.teamspeak.server.org",
 "password": "",
 "name": "MusicBot",
 "id": "<base64 string>"
 }
-
 ```
