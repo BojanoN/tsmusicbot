@@ -14,3 +14,20 @@ Proceed to execute the program afterwards.
 * `!stop` - stops playback of the current song
 * `!volume <float value in [0, 1]>` - adjusts playback volume
 
+### Configuration parameters
+The configuration is stored in a json file.
+* `host` - host domain name
+* `password` - server password
+* `name` - bot nickname
+* `id` - base64 encoded id
+
+#### Example configuration file
+```
+{
+"host": "a.teamspeak.server.org",
+"password": "",
+"name": "MusicBot",
+"id": "<base64 string>"
+}
+
+```
