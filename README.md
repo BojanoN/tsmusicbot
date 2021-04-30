@@ -9,6 +9,12 @@ A Linux-based OS, `ffmpeg` and `youtube-dl`.
 After building or downloading the precompiled program, create a `config.json` file in the current directory and fill out the desired configuration parameters.
 Proceed to execute the program afterwards.
 
+### Building
+```
+git clone --recurse-submodules https://github.com/BojanoN/tsmusicbot.git
+cargo build --release
+```
+
 ### Supported commands
 * `!yt <media_url>` - queues the requested url for playback
 * `!stop` - stops playback of the current song
