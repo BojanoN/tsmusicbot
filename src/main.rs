@@ -300,14 +300,22 @@ async fn main() -> Result<()> {
 }
 
 async fn real_main() -> Result<()> {
-    if let Err(e) = Command::new("ffmpeg").spawn() {
+    if let Err(e) = Command::new("ffmpeg")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
         if let NotFound = e.kind() {
             error!("ffmpeg was not found!");
             exit(-1);
         }
     }
 
-    if let Err(e) = Command::new("youtube-dl").spawn() {
+    if let Err(e) = Command::new("youtube-dl")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
         if let NotFound = e.kind() {
             error!("youtube-dl was not found!");
             exit(-1);
