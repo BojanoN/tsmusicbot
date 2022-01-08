@@ -10,6 +10,6 @@ RUN chown bot /bot
 USER bot
 COPY config/config.json .
 
-RUN wget "https://github.com/BojanoN/tsmusicbot/releases/download/v0.1/tsmusicbot-0.1" -O tsmusicbot && chmod +x tsmusicbot
+RUN wget "https://github.com/BojanoN/tsmusicbot/releases/download/v0.1.1/tsmusicbot" -O tsmusicbot && chmod +x tsmusicbot
 
 CMD ["./tsmusicbot"]
