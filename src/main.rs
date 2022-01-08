@@ -4,9 +4,6 @@ use futures::prelude::*;
 use log::{error, info, trace};
 use serde::Deserialize;
 use std::collections::VecDeque;
-use std::io::ErrorKind::NotFound;
-use std::io::Read;
-use std::path::Path;
 use std::process::{exit, Command, Stdio};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout, Duration};
@@ -31,6 +28,7 @@ struct Config {
 #[derive(Debug)]
 enum Action {
     PlayAudio(String),
+    PlayNukedAudio(String),
     Stop,
     ChangeVolume { modifier: f32 },
     None,
@@ -71,8 +69,6 @@ fn parse_command(msg: &str) -> Action {
     let split_vec: Vec<&str> = sanitized.split(' ').collect();
 
     if split_vec[0] == "!stop" {
-        println!("STOP MSG");
-
         return Action::Stop;
     }
 
@@ -94,15 +90,18 @@ fn parse_command(msg: &str) -> Action {
     }
 
     if split_vec[0] == "!yt" {
-        println!("MSG: {}", split_vec[1]);
-
+        trace!("MSG: {}", split_vec[1]);
         return Action::PlayAudio(split_vec[1].to_string());
+    }
+
+    if split_vec[0] == "!brki" {
+        trace!("MSG: {}", split_vec[1]);
+        return Action::PlayNukedAudio(split_vec[1].to_string());
     }
 
     Action::None
 }
 
-const CACHE_FOLDER: &str = "./cache";
 const DEFAULT_VOLUME: f32 = 0.2;
 
 async fn play_file(
@@ -117,82 +116,35 @@ async fn play_file(
     let codec = CodecType::OpusMusic;
     let mut current_volume = volume;
 
-    let mut ytdl_fname = match Command::new("youtube-dl")
-        .args(&[&link, "--get-filename"])
+    let ytdl_url = match Command::new("youtube-dl")
+        .args(&[&link, "--get-url"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
     {
-        Err(why) => panic!("couldn't spawn ffmpeg: {}", why),
-        Ok(process) => process,
-    };
-
-    match ytdl_fname.wait() {
-        Err(e) => {
-            error!("Error: {}", e);
-            return;
-        }
-        Ok(status) => {
-            if let false = status.success() {
-                error!("youtube-dl error");
-                if let Err(e) = pkt_send.send(AudioPacket::None).await {
-                    error!("Status packet sending error: {}", e);
-                    return;
-                }
-                return;
+        Err(why) => {
+            if let Err(e) = pkt_send.send(AudioPacket::None).await {
+                error!("Status packet sending error: {}", e);
             }
+            panic!("couldn't spawn youtube-dl: {}", why);
         }
-    };
-
-    info!("CALLED: {}", &link);
-
-    let mut fname: String = String::new();
-
-    if let Err(e) = ytdl_fname.stdout.unwrap().read_to_string(&mut fname) {
-        error!("Error: {}", e);
-        if let Err(e) = pkt_send.send(AudioPacket::None).await {
-            error!("Status packet sending error: {}", e);
-            return;
-        }
-        return;
-    }
-
-    fname = Path::new(".")
-        .join(CACHE_FOLDER)
-        .join(
-            [&fname[0..fname.rfind('.').unwrap()], ".wav"]
-                .join("")
-                .replace('\n', ""),
-        )
-        .to_str()
-        .unwrap()
-        .to_string();
-
-    let mut ytdl = match Command::new("youtube-dl")
-        .args(&[
-            "-x",
-            "--output",
-            &[CACHE_FOLDER, "/%(title)s-%(id)s.%(ext)s"].join(""),
-            "--audio-format",
-            "wav",
-            &link,
-        ])
-        .spawn()
-    {
-        Err(why) => panic!("couldn't spawn youtube-dl: {}", why),
         Ok(process) => process,
     };
 
-    if let Err(e) = ytdl.wait() {
-        error!("Error: {}", e);
-        if let Err(e) = pkt_send.send(AudioPacket::None).await {
-            error!("Status packet sending error: {}", e);
+    let ytdl_stdout = match String::from_utf8(ytdl_url.stdout) {
+        Ok(urls) => urls,
+        Err(why) => panic!("Empty ytdl command output: {}", why),
+    };
+
+    let url = match ytdl_stdout.split('\n').nth(1) {
+        Some(s) => s,
+        None => {
+            error!("Missing audio stream in {}", link);
             if let Err(e) = pkt_send.send(AudioPacket::None).await {
                 error!("Status packet sending error: {}", e);
                 return;
             }
             return;
         }
-        return;
     };
 
     let encoder = audiopus::coder::Encoder::new(
@@ -202,13 +154,12 @@ async fn play_file(
     )
     .expect("Could not create encoder");
 
-    info!("FNAME: {}", &fname);
     let ffmpeg = match Command::new("ffmpeg")
         .args(&[
             "-loglevel",
             "quiet",
             "-i",
-            &fname,
+            url,
             "-af",
             "aresample=48000",
             "-f",
@@ -226,8 +177,6 @@ async fn play_file(
     let mut opus_pkt: [u8; MAX_PACKET_SIZE] = [0; MAX_PACKET_SIZE];
 
     let mut ffmpeg_stdout = ffmpeg.stdout.unwrap();
-
-    //let mut start;
 
     loop {
         // start = Instant::now();
@@ -258,7 +207,6 @@ async fn play_file(
         for i in 0..FRAME_SIZE * 2 {
             pcm_in_be[i] = (pcm_in_be[i] as f32 * current_volume) as i16;
         }
-
         let len = encoder.encode(&pcm_in_be, &mut opus_pkt[..]).unwrap();
 
         let packet = OutAudio::new(&AudioData::C2S {
@@ -287,11 +235,6 @@ async fn play_file(
         return;
     }
     cmd_recv.close();
-
-    if let Err(e) = std::fs::remove_file(fname) {
-        error!("Error removing file: {}", e);
-        return;
-    }
 }
 
 #[tokio::main]
@@ -300,30 +243,39 @@ async fn main() -> Result<()> {
 }
 
 async fn real_main() -> Result<()> {
-    if let Err(e) = Command::new("ffmpeg")
+    if let Err(why) = Command::new("ffmpeg")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
     {
-        if let NotFound = e.kind() {
-            error!("ffmpeg was not found!");
-            exit(-1);
-        }
-    }
+        error!("Unable to execute ffmpeg: {}", why);
+        exit(-1);
+    };
 
-    if let Err(e) = Command::new("youtube-dl")
+    if let Err(why) = Command::new("youtube-dl")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
     {
-        if let NotFound = e.kind() {
-            error!("youtube-dl was not found!");
+        error!("Unable to execute youtube-dl: {}", why);
+        exit(-1);
+    };
+
+    let config_file = match std::fs::File::open("config.json") {
+        Ok(id) => id,
+        Err(why) => {
+            error!("Unable to open configuration file: {}", why);
             exit(-1);
         }
-    }
+    };
 
-    let config_file = std::fs::File::open("config.json").expect("Failed to open config");
-    let config_json: Config = serde_json::from_reader(config_file).expect("Failed to parse config");
+    let config_json: Config = match serde_json::from_reader(config_file) {
+        Ok(cfg) => cfg,
+        Err(why) => {
+            error!("Failed to parse config: {}", why);
+            exit(-1);
+        }
+    };
 
     let con_config = Connection::build(config_json.host)
         .name(config_json.name)
@@ -332,11 +284,23 @@ async fn real_main() -> Result<()> {
         .log_packets(false)
         .log_udp_packets(false);
 
-    let id = Identity::new_from_str(&config_json.id).unwrap();
+    let id = match Identity::new_from_str(&config_json.id) {
+        Ok(id) => id,
+        Err(why) => {
+            error!("Invalid teamspeak3 identity string: {}", why);
+            exit(-1);
+        }
+    };
 
     let con_config = con_config.identity(id);
 
-    let mut init_con = con_config.connect()?;
+    let mut init_con = match con_config.connect() {
+        Ok(con) => con,
+        Err(why) => {
+            error!("Unable to connect: {}", why);
+            exit(-1);
+        }
+    };
     let r = init_con
         .events()
         .try_filter(|e| future::ready(matches!(e, StreamItem::BookEvents(_))))
@@ -347,28 +311,8 @@ async fn real_main() -> Result<()> {
     }
 
     let (pkt_send, mut pkt_recv) = mpsc::channel(64);
-
     let (status_send, mut status_recv) = mpsc::channel(64);
-
     let mut playing: bool = false;
-
-    // Mount ramfs cache using /dev/shm
-    let shm_dir = Path::new("/dev/shm/").join(CACHE_FOLDER);
-    let cache_symlink = Path::new(CACHE_FOLDER);
-
-    if !shm_dir.exists() {
-        std::fs::create_dir(shm_dir)?;
-    }
-
-    if cache_symlink.exists() {
-        let md = std::fs::symlink_metadata(cache_symlink).unwrap();
-
-        if md.is_dir() {
-            std::fs::remove_dir(cache_symlink)?;
-        } else if md.is_file() {
-            std::fs::remove_file(cache_symlink)?;
-        }
-    }
 
     let (mut cmd_send, _cmd_recv) = mpsc::channel(4);
     let mut play_queue: VecDeque<String> = VecDeque::new();
@@ -380,8 +324,8 @@ async fn real_main() -> Result<()> {
                     for msg in msg_vec {
                         match msg {
                             Event::Message {
-                                invoker,
-                                target,
+                                invoker: _,
+                                target: _,
                                 message,
                             } => {
                                 if let Err(e) = status_send.send(parse_command(&message)).await {
@@ -406,7 +350,7 @@ async fn real_main() -> Result<()> {
                     },
                     Some(action) => {
                         match action {
-                            Action::PlayAudio(link) => {
+                            Action::PlayAudio(link) | Action::PlayNukedAudio(link) => {
                                 trace!("RECV");
                                 if !playing{
                                     playing = true;
@@ -424,10 +368,10 @@ async fn real_main() -> Result<()> {
                                 }
                             },
                             Action::ChangeVolume {modifier} => {
-                                if playing { cmd_send.send(PlayTaskCmd::ChangeVolume {modifier}).await; };
+                                if playing { let _ = cmd_send.send(PlayTaskCmd::ChangeVolume {modifier}).await; };
                             },
                             Action::Stop => {
-                                if playing{ cmd_send.send(PlayTaskCmd::Stop).await;};
+                                if playing{ let _ = cmd_send.send(PlayTaskCmd::Stop).await;};
                             }
                             _ => {},
                         }
@@ -474,6 +418,7 @@ async fn real_main() -> Result<()> {
             _ = tokio::signal::ctrl_c() => { break; }
             r = events => {
                         r?;
+                        init_con.disconnect(DisconnectOptions::new())?;
                         bail!("Disconnected");
                   }
         };
