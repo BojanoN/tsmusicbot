@@ -261,7 +261,7 @@ async fn real_main() -> Result<()> {
         exit(-1);
     };
 
-    let config_file = match std::fs::File::open("config.json") {
+    let config_file = match std::fs::File::open("/opt/tsmusicbot/config.json") {
         Ok(id) => id,
         Err(why) => {
             error!("Unable to open configuration file: {}", why);
