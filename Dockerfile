@@ -5,13 +5,15 @@ RUN apk add --update --no-cache musl-dev pkgconfig openssl-dev opus-dev
 WORKDIR /usr/src/tsmusicbot
 COPY . .
 
-RUN cargo install --path .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/tsmusicbot/target \
+    cargo install --path .
 
 FROM alpine:latest as final
 
 # Switch to root
 USER root
-RUN apk add --update --no-cache ffmpeg youtube-dl
+RUN apk add --update --no-cache ffmpeg youtube-dl opus
 
 # Set user and group
 ARG user=bot
@@ -26,4 +28,5 @@ WORKDIR $HOME
 COPY --from=builder /usr/local/cargo/bin/tsmusicbot /usr/local/bin/tsmusicbot
 COPY ./config.json.default /opt/tsmusicbot/config.json
 
+ENV RUST_LOG=TRACE
 ENTRYPOINT ["tsmusicbot"]

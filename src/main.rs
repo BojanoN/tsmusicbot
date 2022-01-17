@@ -243,6 +243,8 @@ async fn main() -> Result<()> {
 }
 
 async fn real_main() -> Result<()> {
+    env_logger::init();
+
     if let Err(why) = Command::new("ffmpeg")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
