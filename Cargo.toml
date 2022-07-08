@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 byteorder = "1.4.3"
 audiopus = "0.2.0"
-libmount = "0.1.15"
 serde = "1.0.124"
 serde_json = "1.0.64"
 tsclientlib = { git = "https://github.com/ReSpeak/tsclientlib" }
