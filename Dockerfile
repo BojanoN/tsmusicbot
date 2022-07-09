@@ -31,5 +31,7 @@ WORKDIR $HOME
 COPY --from=builder /root/.cargo/bin/tsmusicbot /usr/local/bin/tsmusicbot
 COPY config.json.default /opt/tsmusicbot/config.json
 
+VOLUME /opt/tsmusicbot
+
 ENV RUST_LOG=TRACE
 ENTRYPOINT ["tsmusicbot"]
