@@ -51,8 +51,8 @@ fn sanitize(s: &str) -> String {
         .filter(|c| {
             c.is_alphanumeric()
                 || [
-                ' ', '.', ' ', '=', '\t', ',', '?', '!', ':', '&', '/', '-', '_',
-            ]
+                    ' ', '.', ' ', '=', '\t', ',', '?', '!', ':', '&', '/', '_',
+                ]
                 .contains(c)
         })
         .collect()
@@ -424,8 +424,7 @@ async fn real_main() -> Result<()> {
                         init_con.disconnect(DisconnectOptions::new())?;
                         bail!("Disconnected");
                   }
-        }
-        ;
+        };
     }
 
     // Disconnect
