@@ -152,7 +152,7 @@ async fn play_file(
         audiopus::Channels::Stereo,
         audiopus::Application::Audio,
     )
-    .expect("Could not create encoder");
+        .expect("Could not create encoder");
 
     let ffmpeg = match Command::new("ffmpeg")
         .args(&[
@@ -243,6 +243,8 @@ async fn main() -> Result<()> {
 }
 
 async fn real_main() -> Result<()> {
+    env_logger::init();
+
     if let Err(why) = Command::new("ffmpeg")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -261,7 +263,8 @@ async fn real_main() -> Result<()> {
         exit(-1);
     };
 
-    let config_file = match std::fs::File::open("config.json") {
+    let config_file_path = "/opt/tsmusicbot/config.json";
+    let config_file = match std::fs::File::open(config_file_path) {
         Ok(id) => id,
         Err(why) => {
             error!("Unable to open configuration file: {}", why);

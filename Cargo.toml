@@ -4,27 +4,24 @@ version = "0.1.0"
 description = "A TeamSpeak3 music bot."
 edition = "2018"
 
-
-
 [dependencies]
 byteorder = "1.4.3"
 audiopus = "0.2.0"
-libmount = "0.1.15"
 serde = "1.0.124"
 serde_json = "1.0.64"
-tsclientlib = { path = "./lib/tsclientlib/tsclientlib" }
-tsproto-packets = { path = "./lib/tsclientlib/utils/tsproto-packets" }
-anyhow = "1"
+tsclientlib = { git = "https://github.com/ReSpeak/tsclientlib" }
+tsproto-packets = { git = "https://github.com/ReSpeak/tsclientlib" }
+anyhow = "1.0.52"
 futures = "0.3"
-tokio = { version = "1", features = ["time"] }
-tokio-stream = "0.1"
-log = "0.4"
+tokio = { version = "1.15.0", features = ["time", "signal"] }
+tokio-stream = "0.1.8"
+log = "0.4.14"
+env_logger = "0.9.0"
+zeroize = "1.5.6"
 
 [dependencies.slog]
 version = "2"
 features = ["max_level_trace", "release_max_level_info"]
 
 [dev-dependencies]
-
-tokio = { version = "1", features = ["io-util", "net", "rt-multi-thread", "rt", "signal"] }
-
+tokio = { version = "1.15.0", features = ["io-util", "net", "rt-multi-thread", "rt", "signal"] }

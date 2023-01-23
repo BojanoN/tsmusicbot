@@ -1,0 +1,35 @@
+FROM rust:slim as builder
+
+RUN apt update && apt install -y --no-install-recommends libopus-dev libssl-dev pkg-config
+
+WORKDIR /usr/src/tsmusicbot
+COPY . .
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/tsmusicbot/target \
+    cargo install --path .
+
+FROM debian:bullseye-slim as final
+
+# Switch to root
+USER root
+RUN apt update && apt install -y --no-install-recommends ffmpeg python3-pip && rm -rf /var/lib/apt/lists/*
+
+# Set user and group
+ARG user=bot
+ARG group=bot
+ARG uid=2000
+
+RUN adduser --uid ${uid} --disabled-password --gecos "" ${user}
+
+USER ${uid}:${uid}
+WORKDIR $HOME
+
+RUN pip3 install --user youtube-dl
+ENV PATH="/home/${user}/.local/bin:${PATH}"
+
+COPY --from=builder /usr/local/cargo/bin/tsmusicbot /usr/local/bin/tsmusicbot
+COPY config.json.default /opt/tsmusicbot/config.json
+
+ENV RUST_LOG=TRACE
+ENTRYPOINT ["tsmusicbot"]
